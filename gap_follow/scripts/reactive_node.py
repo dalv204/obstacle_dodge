@@ -6,6 +6,7 @@ from rclpy.node import Node
 import numpy as np
 from sensor_msgs.msg import LaserScan
 from ackermann_msgs.msg import AckermannDriveStamped, AckermannDrive
+from sensor_msgs.msg import Joy 
 
 class ReactiveFollowGap(Node):
     """ 
@@ -18,11 +19,20 @@ class ReactiveFollowGap(Node):
         lidarscan_topic = '/scan'
         drive_topic = '/drive'
 
+        qos = rclpy.qos.QoSProfile(history=rclpy.qos.QoSHistoryPolicy.KEEP_LAST,
+                                   depth=1,
+                                   reliability=rclpy.qos.QoSReliabilityPolicy.RELIABLE,
+                                   durability=rclpy.qos.QoSDurabilityPolicy.VOLATILE)
+
         self.subscription_laser = self.create_subscription(
             LaserScan,
             lidarscan_topic,
             self.lidar_callback,
             10
+        )
+
+        self.subscription_joy = self.create_subscription(
+            Joy, "joy", self.joy_callback, qos
         )
 
         self.publisher_ = self.create_publisher(
@@ -32,6 +42,16 @@ class ReactiveFollowGap(Node):
         )
 
         self.drive_speed = 0.5 # set to drive slower while running tests
+        self.safe = False
+
+    def joy_callback(self, msg):
+        print(f"Button states: {msg.buttons}")
+        deadman = 0  # current index of desired deadmann button
+        if msg.buttons[deadman] == 1:  # is pressed
+            self.safe = True
+        else:
+            self.safe = False
+        
 
     def change_car_behavior(self, best_angle, best_dist):
         """ uses the angle of the best direction """
@@ -43,6 +63,10 @@ class ReactiveFollowGap(Node):
         drive_msg.drive.steering_angle = control_effort
         # print(best_angle)
         drive_msg.drive.speed = best_dist*self.drive_speed
+        if not self.safe:
+            drive_msg.drive.speed = 0.0
+            # for now still calculates everything, just doesnt move
+            # could change later
         self.publisher_.publish(drive_msg)
 
     def preprocess_lidar(self, ranges):
@@ -124,7 +148,7 @@ class ReactiveFollowGap(Node):
                     point_index = min((start_i + end_i)//2 + (abs(start_i - end_i)//2) + int(min_dist/side_diff), end_i)
                     # is side_diff/min_dist better than min_dist/side_diff?     + int(min_dist/side_diff)
                     # might be better to say something like... how much of the side difference is from this side? so before_d//side_diff #int((side_diff/min_dist)*
-                    print(f"{side_diff/ratio=}")
+                    # print(f"{side_diff/ratio=}")
                 else:
                     # prioritize turning right
                     point_index = max((start_i + end_i)//2 - (abs(start_i - end_i)//2) - int(min_dist/side_diff), start_i) # int((side_diff/min_dist)*  - int(min_dist/side_diff)
@@ -149,7 +173,7 @@ class ReactiveFollowGap(Node):
         angle_min = data.angle_min
         closest_point_index, closest_point_range = self.find_closest_point(proc_ranges)
         closest_point_angle = (closest_point_index * angle_increment) + angle_min
-        print(f"{closest_point_angle=}")
+        # print(f"{closest_point_angle=}")
         bubble_radius = .15 # 20 cm
         angle_dif = np.arctan(bubble_radius/closest_point_range)
         # print(f"{closest_point_range=}")
@@ -162,9 +186,9 @@ class ReactiveFollowGap(Node):
 
         gap_min, gap_max = self.find_max_gap(proc_ranges)
         best_index = self.find_best_point(gap_min, gap_max, proc_ranges)
-        print(f"{best_index=}")
+        # print(f"{best_index=}")
         best_dist = proc_ranges[best_index]
-        print(f"{best_dist=}")
+        # print(f"{best_dist=}")
         best_angle = (best_index*angle_increment) + angle_min
         print(f"{best_angle=}")
 
