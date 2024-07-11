@@ -20,18 +20,18 @@ class ReactiveFollowGap(Node):
 
         self.subscription_laser = self.create_subscription(
             LaserScan,
-            '/scan',
+            lidarscan_topic,
             self.lidar_callback,
             10
         )
 
         self.publisher_ = self.create_publisher(
             AckermannDriveStamped,
-            '/drive',
+            drive_topic,
             10
         )
 
-        self.drive_speed = 1
+        self.drive_speed = 0.5 # set to drive slower while running tests
 
     def change_car_behavior(self, best_angle, best_dist):
         """ uses the angle of the best direction """
