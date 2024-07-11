@@ -18,6 +18,7 @@ class ReactiveFollowGap(Node):
         # Topics & Subs, Pubs
         lidarscan_topic = '/scan'
         drive_topic = '/drive'
+        joy_topic = "/joy"
 
         qos = rclpy.qos.QoSProfile(history=rclpy.qos.QoSHistoryPolicy.KEEP_LAST,
                                    depth=1,
@@ -32,7 +33,7 @@ class ReactiveFollowGap(Node):
         )
 
         self.subscription_joy = self.create_subscription(
-            Joy, "joy", self.joy_callback, qos
+            Joy, joy_topic, self.joy_callback, qos
         )
 
         self.publisher_ = self.create_publisher(
